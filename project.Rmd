@@ -1,0 +1,139 @@
+Machine Learning Project: Predicting how well individual performs  barbell lifts
+==================================================================
+
+#Introduction
+Devices such as Jawbone Up, Nike FuelBand, and Fitbit provide a large amount of data about personal activity.  This analysis uses data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants, who were asked to perform barbell lifts correctly and incorrectly in 5 different ways.  
+
+#Load and Explore Data
+```{r,warning=FALSE,eval=FALSE}
+library(caret)
+dataset <- read.csv("train.csv")
+inTrain <- createDataPartition(dataset$classe,p=0.7,list=FALSE)
+training <- dataset[inTrain,]
+testing <- dataset[-inTrain,]
+str(training)
+```
+
+#Prepreocess Data
+There are 160 variables.  After careful examination of the variable, some of the variables are statistical properties such as
+kurtosis, min, max, etc.  I will remove thses variables since they are not predictive variables
+
+```{r,warning=FALSE,eval=FALSE}
+#identify columns with statistical properties
+stats_id <- c("kurtosis","skewness","max","min","amplitude","avg","stddev","var")
+col_remove <-c()
+for(i in stats_id){
+  k <- grep(i, names(training), value = F)
+  col_remove <- c(col_remove, as.integer(k))
+}
+
+#The first 7 columns are housekeeping items and also need to be removed
+col_remove <- c(c(1:7),col_remove)
+
+#Remove unwanted columns
+training <- training[,-col_remove]
+testing <- testing[,-col_remove]
+dim(training)
+dim(testing)
+```
+
+#Model Fitting 
+
+After data preprocess, 56 covariates are left in the dataset, but I suspect many of them are correlated. 
+Therefore, I use PCA before fitting a model using random forest. 
+
+```{r,warning=FALSE,eval=FALSE}
+modFit <- train(classe~., method="rf",preProcess="pca",data=training)
+```
+
+#Model Evaluation
+
+The in sample error is 0. However, the out of sample error should be greater than 0.
+```{r,warning=FALSE,eval=FALSE}
+confusionMatrix(training$classe,predict(modFit))
+```
+
+```{r,warning=FALSE,eval=FALSE}
+##Confusion Matrix and Statistics
+
+          Reference
+Prediction    A    B    C    D    E
+         A 3906    0    0    0    0
+         B    0 2658    0    0    0
+         C    0    0 2396    0    0
+         D    0    0    0 2252    0
+         E    0    0    0    0 2525
+
+Overall Statistics
+                                     
+               Accuracy : 1          
+                 95% CI : (0.9997, 1)
+    No Information Rate : 0.2843     
+    P-Value [Acc > NIR] : < 2.2e-16  
+                                     
+                  Kappa : 1          
+ Mcnemar's Test P-Value : NA         
+
+Statistics by Class:
+
+                     Class: A Class: B Class: C Class: D Class: E
+Sensitivity            1.0000   1.0000   1.0000   1.0000   1.0000
+Specificity            1.0000   1.0000   1.0000   1.0000   1.0000
+Pos Pred Value         1.0000   1.0000   1.0000   1.0000   1.0000
+Neg Pred Value         1.0000   1.0000   1.0000   1.0000   1.0000
+Prevalence             0.2843   0.1935   0.1744   0.1639   0.1838
+Detection Rate         0.2843   0.1935   0.1744   0.1639   0.1838
+Detection Prevalence   0.2843   0.1935   0.1744   0.1639   0.1838
+Balanced Accuracy      1.0000   1.0000   1.0000   1.0000   1.0000
+```
+
+As expected, the out of sample error is 0.028, which is greater than 0.
+```{r,warning=FALSE,eval=FALSE}
+confusionMatrix(testing$classe,predict(modFit,testing))
+```
+
+```{r,warning=FALSE,eval=FALSE}
+##Confusion Matrix and Statistics
+
+          Reference
+Prediction    A    B    C    D    E
+         A 1661    3    2    7    1
+         B   26 1093   19    0    1
+         C    2   11  998   15    0
+         D    1    0   46  914    3
+         E    2    5   13    8 1054
+
+Overall Statistics
+                                         
+               Accuracy : 0.972          
+                 95% CI : (0.9674, 0.976)
+    No Information Rate : 0.2875         
+    P-Value [Acc > NIR] : < 2.2e-16      
+                                         
+                  Kappa : 0.9645         
+ Mcnemar's Test P-Value : NA             
+
+Statistics by Class:
+
+                     Class: A Class: B Class: C Class: D Class: E
+Sensitivity            0.9817   0.9829   0.9258   0.9682   0.9953
+Specificity            0.9969   0.9904   0.9942   0.9899   0.9942
+Pos Pred Value         0.9922   0.9596   0.9727   0.9481   0.9741
+Neg Pred Value         0.9926   0.9960   0.9835   0.9939   0.9990
+Prevalence             0.2875   0.1890   0.1832   0.1604   0.1799
+Detection Rate         0.2822   0.1857   0.1696   0.1553   0.1791
+Detection Prevalence   0.2845   0.1935   0.1743   0.1638   0.1839
+Balanced Accuracy      0.9893   0.9866   0.9600   0.9791   0.9947
+```
+
+
+#Prediction for the 20 test cases
+
+```{r,warning=FALSE,eval=FALSE}
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",destfile="test.csv",method="curl")
+test_pred <- read.csv("test.csv")
+test_pred <- test_pred[,-col_remove]
+prediction <- predict(modFit,test_pred)
+```
+
+Prediction output: B A B A A E D B A A B C B A E E A B B B
